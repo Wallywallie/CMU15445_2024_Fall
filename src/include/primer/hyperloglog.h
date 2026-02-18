@@ -13,6 +13,7 @@
 #pragma once
 
 #include <bitset>
+#include <cstddef>
 #include <memory>
 #include <mutex>  // NOLINT
 #include <string>
@@ -34,6 +35,8 @@ class HyperLogLog {
  public:
   /** @brief Disable default constructor. */
   HyperLogLog() = delete;
+  
+  ~HyperLogLog();
 
   explicit HyperLogLog(int16_t n_bits);
 
@@ -72,7 +75,11 @@ class HyperLogLog {
   /** @brief Cardinality value. */
   size_t cardinality_;
 
-  /** @todo (student) can add their data structures that support HyperLogLog */
+  int16_t n_bits_;
+
+  size_t bucket_count_;
+
+  size_t* max_count_in_buckets_;
 };
 
 }  // namespace bustub
