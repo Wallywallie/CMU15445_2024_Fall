@@ -13,10 +13,13 @@
 #pragma once
 
 #include <cassert>
+#include <chrono>
 #include <exception>
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
+#include <thread>
+#include <iomanip>
 
 namespace bustub {  // NOLINT
 
@@ -62,6 +65,16 @@ class LogFatalStream {
     std::cerr << "ERROR: " << (message) << std::endl; \
     std::terminate();                                 \
   }
+
+#define BUSTUB_LOG(message)                                          \
+  do {                                                                       \
+    auto now = std::chrono::system_clock::now();                             \
+    auto in_time_t = std::chrono::system_clock::to_time_t(now);              \
+    std::ostringstream oss;                                                  \
+    oss << "[" << std::put_time(std::localtime(&in_time_t), "%Y-%m-%d %X")   \
+        << "] [Thread: " << std::this_thread::get_id() << "] " << (message); \
+    std::cout << oss.str() << std::endl;                                    \
+  } while (0)
 
 #define UNREACHABLE(message) throw std::logic_error(message)
 

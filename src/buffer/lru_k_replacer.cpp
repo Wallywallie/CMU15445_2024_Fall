@@ -11,9 +11,47 @@
 //===----------------------------------------------------------------------===//
 
 #include "buffer/lru_k_replacer.h"
+#include <algorithm>
+#include <cstddef>
+#include <memory>
+#include <stdexcept>
+#include "common/config.h"
 #include "common/exception.h"
+#include "common/macros.h"
+#include <chrono>
+#include <string>
+#include <utility>
 
 namespace bustub {
+
+void LRUKNode::SetEvictable(bool is_evictable){
+    auto msg = "Frame " + std::to_string(fid_) + " " + (is_evictable ? "true" : "false");
+    BUSTUB_LOG(msg);
+    is_evictable_ = is_evictable;
+}
+
+auto LRUKNode::GetEvictable() const -> bool {
+    return is_evictable_;
+}
+
+void LRUKNode::Visit(size_t curr_time){
+    if (history_.size() == k_) {
+        history_.pop_front();
+    }
+    history_.emplace_back(curr_time);
+    auto msg = "Frame " + std::to_string(fid_) + " Visited, First TimeStamp: "  + std::to_string(history_.front()) + " History_count: " + std::to_string(history_.size());
+    //BUSTUB_LOG(msg);
+}
+
+auto LRUKNode::GetHistoryCount() const -> size_t {
+    return history_.size();
+}
+
+LRUKNode::LRUKNode(frame_id_t frame_id, size_t k) : k_(k), fid_(frame_id) 
+{
+    auto msg = "LRUKNode: frame_id_t " + std::to_string(frame_id) + " k_ " + std::to_string(k_);
+    BUSTUB_LOG(msg);
+}
 
 /**
  *
@@ -39,7 +77,44 @@ LRUKReplacer::LRUKReplacer(size_t num_frames, size_t k) : replacer_size_(num_fra
  *
  * @return the frame ID if a frame is successfully evicted, or `std::nullopt` if no frames can be evicted.
  */
-auto LRUKReplacer::Evict() -> std::optional<frame_id_t> { return std::nullopt; }
+auto LRUKReplacer::Evict() -> std::optional<frame_id_t> { 
+    LRUKNode* evict_node = nullptr;
+    size_t max_time_gap = 0;
+    if (node_store_.size() == 2) 
+    {
+
+    }
+    for (auto& i : node_store_) {
+        if (!i.second.GetEvictable()) {
+            continue;
+        }
+        if (i.second.GetHistoryCount() < k_)
+        {
+            max_time_gap = inf_;
+            if (evict_node == nullptr || i.second.history_.front() < evict_node->history_.front()) {
+                auto msg = "Evict_node has been set to " + std::to_string(i.second.fid_);
+                //BUSTUB_LOG(msg);
+                evict_node = &i.second;
+            }
+        } else {
+            size_t curr_time_gap = current_timestamp_ - i.second.history_.front();
+            if (curr_time_gap > max_time_gap) {
+                auto msg = "Evict_node has been set to " + std::to_string(i.second.fid_);
+                //BUSTUB_LOG(msg);
+                evict_node = &i.second;
+                max_time_gap = curr_time_gap;
+            }
+        }
+    }
+    if (evict_node != nullptr) {
+        frame_id_t frame_id = evict_node -> fid_;
+        Remove(frame_id);
+        auto msg = "Frame " + std::to_string(frame_id) + " has been Evicted";
+        //BUSTUB_LOG(msg);
+        return frame_id;
+    }
+    return std::nullopt; 
+}
 
 /**
  * TODO(P1): Add implementation
@@ -54,7 +129,17 @@ auto LRUKReplacer::Evict() -> std::optional<frame_id_t> { return std::nullopt; }
  * @param access_type type of access that was received. This parameter is only needed for
  * leaderboard tests.
  */
-void LRUKReplacer::RecordAccess(frame_id_t frame_id, [[maybe_unused]] AccessType access_type) {}
+void LRUKReplacer::RecordAccess(frame_id_t frame_id, [[maybe_unused]] AccessType access_type) {
+    BUSTUB_ENSURE(frame_id > 0, "Error: frame_id <= 0");
+    BUSTUB_ENSURE(static_cast<size_t>(frame_id) <= replacer_size_, "Error: key does not exist");
+    
+    auto iter = node_store_.find(frame_id);
+    if (iter == node_store_.end()) {
+        node_store_.emplace(frame_id, LRUKNode(frame_id, k_));
+    } 
+    node_store_[frame_id].Visit(current_timestamp_);
+    ++current_timestamp_;
+}
 
 /**
  * TODO(P1): Add implementation
@@ -73,7 +158,21 @@ void LRUKReplacer::RecordAccess(frame_id_t frame_id, [[maybe_unused]] AccessType
  * @param frame_id id of frame whose 'evictable' status will be modified
  * @param set_evictable whether the given frame is evictable or not
  */
-void LRUKReplacer::SetEvictable(frame_id_t frame_id, bool set_evictable) {}
+void LRUKReplacer::SetEvictable(frame_id_t frame_id, bool set_evictable) {
+    auto iter = node_store_.find(frame_id);
+    if (iter == node_store_.end()) {
+        //throw std::runtime_error("Error: key = " + std::to_string(frame_id) + " does not exist in unode_store_");
+        return;
+    }
+    BUSTUB_ENSURE(iter != node_store_.end(), "key does not exist in unode_store_");
+    LRUKNode& node = iter -> second;
+    if (!node.GetEvictable() && set_evictable) {
+        curr_size_++;
+    }else if (node.GetEvictable() && !set_evictable) {
+        curr_size_--;
+    }
+    node.SetEvictable(set_evictable);
+}
 
 /**
  * TODO(P1): Add implementation
@@ -92,7 +191,18 @@ void LRUKReplacer::SetEvictable(frame_id_t frame_id, bool set_evictable) {}
  *
  * @param frame_id id of frame to be removed
  */
-void LRUKReplacer::Remove(frame_id_t frame_id) {}
+void LRUKReplacer::Remove(frame_id_t frame_id) {
+    auto iter = node_store_.find(frame_id);
+    if (iter == node_store_.end()) {
+        return;
+    }
+    const LRUKNode& node = iter -> second;
+    BUSTUB_ENSURE(node.GetEvictable(), "Error: Remove is called on a non-evictable frame");
+    node_store_.erase(frame_id);
+    curr_size_--;
+    auto msg = "Remove " + std::to_string(frame_id) + " Count: " + std::to_string(node_store_.size()); 
+    BUSTUB_LOG(msg);
+}
 
 /**
  * TODO(P1): Add implementation
@@ -101,6 +211,8 @@ void LRUKReplacer::Remove(frame_id_t frame_id) {}
  *
  * @return size_t
  */
-auto LRUKReplacer::Size() -> size_t { return 0; }
+auto LRUKReplacer::Size() -> size_t {
+     return curr_size_; 
+}
 
 }  // namespace bustub

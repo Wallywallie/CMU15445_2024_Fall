@@ -247,3 +247,4 @@ docs/dev
 
 # LLM Stuff
 .aider*
+llvm-snapshot.gpg.key
