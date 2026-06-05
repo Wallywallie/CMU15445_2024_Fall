@@ -14,6 +14,7 @@
 
 #include <list>
 #include <memory>
+#include <optional>
 #include <shared_mutex>
 #include <unordered_map>
 #include <vector>
@@ -162,6 +163,14 @@ class BufferPoolManager {
    */
   LogManager *log_manager_ __attribute__((__unused__));
 
+  auto GetFreeFrame() -> std::shared_ptr<FrameHeader>;
+
+  void LoadDataToFrame(std::shared_ptr<FrameHeader>& frame_header, page_id_t page_id);
+
+  auto GetFrameIdWithPageData(page_id_t page_id) -> std::optional<frame_id_t>;
+
+  auto FindFrameInFrames(frame_id_t frame_id) -> std::shared_ptr<FrameHeader>;
+  
   /**
    * TODO(P1): You may add additional private members and helper functions if you find them necessary.
    *

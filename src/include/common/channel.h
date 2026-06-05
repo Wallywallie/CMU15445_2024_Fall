@@ -47,7 +47,7 @@ class Channel {
     std::unique_lock<std::mutex> lk(m_);
     cv_.wait(lk, [&]() { return !q_.empty(); });
     T element = std::move(q_.front());
-    q_.pop();
+    q_.pop();                                           
     return element;
   }
 
